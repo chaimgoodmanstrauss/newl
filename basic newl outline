@@ -1,0 +1,74 @@
+Use this data:
+
+given a list of transforms foo, the substitution operator substitute(foo) produces a new list, scale[2] . foo[i] . scale[1/2] . lsubmatrices[j]
+
+
+lsubmatrices = {{{1, 0, 0, -1}, {0, 1, 0, -1}, {0, 0, 1, -1}, {0, 0, 
+    0, 1}}, {{0, 1, 0, -1}, {1, 0, 0, -1}, {0, 0, -1, 1}, {0, 0, 0, 
+    1}}, {{1, 0, 0, -1}, {0, 0, -1, 1}, {0, 1, 0, -1}, {0, 0, 0, 
+    1}}, {{0, 0, 1, -1}, {-1, 0, 0, 1}, {0, -1, 0, 1}, {0, 0, 0, 
+    1}}, {{0, 0, -1, 1}, {0, 1, 0, -1}, {1, 0, 0, -1}, {0, 0, 0, 
+    1}}, {{0, -1, 0, 1}, {0, 0, 1, -1}, {-1, 0, 0, 1}, {0, 0, 0, 
+    1}}, {{-1, 0, 0, 1}, {0, -1, 0, 1}, {0, 0, 1, -1}, {0, 0, 0, 
+    1}}, {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}}
+
+
+
+Chair44decorationtransforms = {{adecoration, {{-1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, 1, 1}, {0, 0, 0, 
+    1}}}, {adecoration, {{-1, 0, 0, 1}, {0, -1, 0, 1}, {0, 0, 1, 
+    0}, {0, 0, 0, 1}}}, {adecoration, {{0, -1, 0, 0}, {-1, 0, 0, 
+    0}, {0, 0, -1, -1}, {0, 0, 0, 1}}}, {adecoration, {{0, -1, 0, 
+    0}, {0, 0, 1, 1}, {-1, 0, 0, 0}, {0, 0, 0, 
+    1}}}, {adecoration, {{0, 0, -1, -1}, {0, 1, 0, 0}, {1, 0, 0, 
+    0}, {0, 0, 0, 1}}}, {adecoration, {{0, 0, 1, 1}, {-1, 0, 0, 
+    0}, {0, -1, 0, 0}, {0, 0, 0, 1}}}, {adecoration, {{0, 1, 0, 
+    0}, {1, 0, 0, 0}, {0, 0, -1, -1}, {0, 0, 0, 
+    1}}}, {adecoration, {{1, 0, 0, 0}, {0, 0, -1, -1}, {0, 1, 0, 
+    0}, {0, 0, 0, 1}}}, {bdecoration, {{-1, 0, 0, 0}, {0, -1, 0, 
+    0}, {0, 0, 1, 1}, {0, 0, 0, 1}}}, {bdecoration, {{0, -1, 0, 
+    0}, {0, 0, 1, 1}, {-1, 0, 0, 0}, {0, 0, 0, 
+    1}}}, {bdecoration, {{0, 0, -1, -1}, {0, 1, 0, 0}, {1, 0, 0, 
+    0}, {0, 0, 0, 1}}}, {bdecoration, {{0, 0, -1, -1}, {1, 0, 0, 
+    0}, {0, -1, 0, 0}, {0, 0, 0, 1}}}, {bdecoration, {{0, 0, 1, 
+    1}, {-1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, 0, 
+    1}}}, {bdecoration, {{0, 1, 0, 0}, {1, 0, 0, 0}, {0, 
+    0, -1, -1}, {0, 0, 0, 1}}}, {bdecoration, {{1, 0, 0, 0}, {0, 
+    0, -1, -1}, {0, 1, 0, 0}, {0, 0, 0, 1}}}, {bdecoration, {{1, 0, 0,
+     1}, {0, 0, 1, 0}, {0, -1, 0, 1}, {0, 0, 0, 
+    1}}}, {cdecoration, {{-1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, 1, 
+    1}, {0, 0, 0, 1}}}, {cdecoration, {{0, -1, 0, 0}, {0, 0, 1, 
+    1}, {-1, 0, 0, 0}, {0, 0, 0, 1}}}, {cdecoration, {{0, 
+    0, -1, -1}, {0, 1, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 
+    1}}}, {cdecoration, {{0, 0, 1, 0}, {0, 1, 0, 1}, {-1, 0, 0, 
+    1}, {0, 0, 0, 1}}}, {cdecoration, {{0, 0, 1, 1}, {-1, 0, 0, 
+    0}, {0, -1, 0, 0}, {0, 0, 0, 1}}}, {cdecoration, {{0, 1, 0, 
+    0}, {0, 0, -1, -1}, {-1, 0, 0, 0}, {0, 0, 0, 
+    1}}}, {cdecoration, {{0, 1, 0, 0}, {1, 0, 0, 0}, {0, 
+    0, -1, -1}, {0, 0, 0, 1}}}, {cdecoration, {{1, 0, 0, 0}, {0, 
+    0, -1, -1}, {0, 1, 0, 0}, {0, 0, 0, 1}}}}
+
+
+The basic "l-tile" has 
+facets (Be sure these, and all facets, are oriented consistently, adjust accordingly)
+
+{{{0, 0, 1}, {1, 0, 1}, {1, -1, 1}, {-1, -1, 1}, {-1, 1, 1}, {0, 1, 
+   1}}, {{1, 0, 0}, {1, 1, 0}, {1, 1, -1}, {1, -1, -1}, {1, -1, 
+   1}, {1, 0, 1}}, {{0, 1, 0}, {0, 1, 1}, {-1, 1, 1}, {-1, 1, -1}, {1,
+    1, -1}, {1, 1, 0}}, {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 
+   1, -1}}, {{-1, -1, -1}, {-1, 1, -1}, {-1, 1, 1}, {-1, -1, 
+   1}}, {{-1, -1, -1}, {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}}, {{0, 0, 
+   0}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}}, {{0, 0, 0}, {0, 0, 1}, {0, 1,
+    1}, {0, 1, 0}}, {{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}}}
+
+The adecoration is exactly the same as the bdecoration, but inside out, that is, they are equal (up to the change in normal and facet orientation this requires to make a consistent surface when these are put together) under the transform {{0,1,0,0},{1,0,0,0},{0,0,-1,0},{0,0,0,1}}
+The cdecoration is invariant under this transform (up to the same orientation swap)
+
+The boundary of the adecoration is {{-1,0,0},{0,0,0},{0,1,0},{-1,1,0}}; the cdecoration is bounded by {{0,0,0},{1,0,0},{1,1,0},{0,1,0}}
+
+the info for bdecoration is implicit
+
+A "tile" is a collection of decorations transformed about to form a surface with a consistent outward normal. The Chair44decoration transforms gives the info needed to assemble a chair tile, once the a and c decorations are specified. The substitution info gives info on making these into a tiling, when the sub rule is applied some (smallish) number of times. 
+
+=====================
+
+I would like an interactive 3d web app that lets me adjust the a, b and c decorations, with some simple mesh manipulation, maintaining the symmetry between a and b and c and itself, showing me the tile with the tiling sub transforms applied. The main thing is to have the editor feel natural, pulling and pushing on a mesh, with some basic mesh sculpting tools. 

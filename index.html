@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>newl</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/three.module.js",
+  "three/addons/": "./vendor/three/addons/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <header>
+      <h1>newl</h1>
+      <button id="panelToggle" class="icon" title="Hide panel">⟨</button>
+    </header>
+
+    <section>
+      <h2>View</h2>
+      <div class="seg" id="viewSeg">
+        <button data-view="deco" title="Decorations a, b, c in their own frames (1)">Decorations</button>
+        <button data-view="tile" title="One chair tile, 24 decorations (2)">Tile</button>
+        <button data-view="tiling" title="Substitution applied n times (3)">Tiling</button>
+      </div>
+      <label class="row" id="levelRow">Substitution level <span class="val" id="levelVal"></span>
+        <input type="range" id="level" min="1" max="3" step="1"></label>
+      <label class="row" id="explodeRow">Explode <span class="val" id="explodeVal"></span>
+        <input type="range" id="explode" min="0" max="1.5" step="0.01"></label>
+      <label class="row" id="peelRow">Peel tiles away <span class="val" id="peelVal"></span>
+        <input type="range" id="peel" min="0" max="0.95" step="0.01"></label>
+    </section>
+
+    <section>
+      <h2>Sculpt</h2>
+      <div class="seg tools" id="toolSeg">
+        <button data-tool="grab" title="Grab: drag the surface around (G)">Grab</button>
+        <button data-tool="pull" title="Pull: raise along the normal, hold Shift to push (P)">Pull</button>
+        <button data-tool="push" title="Push: press in along the normal, hold Shift to pull (I)">Push</button>
+        <button data-tool="smooth" title="Smooth: relax bumps (S)">Smooth</button>
+        <button data-tool="vertex" title="Vertex: drag one vertex (V)">Vertex</button>
+        <button data-tool="flip" title="Flip quad: click a triangle; it and its neighbour across the nearest edge form a quad, and the quad's diagonal is swapped (E)">Flip quad</button>
+        <button data-tool="subdivide" title="Subdivide: split the clicked triangle into four (neighbours are split to match) (D)">Subdivide</button>
+        <button data-tool="delvert" title="Delete vertex: remove an interior vertex and re-triangulate the hole left by its triangles (X)">Delete vertex</button>
+        <button data-tool="refine" title="Refine: subdivide all triangles under the brush radius (R)">Refine</button>
+        <button data-tool="flatten" title="Flatten: return toward the flat square (F)">Flatten</button>
+      </div>
+      <label class="row">Radius <span class="val" id="radiusVal"></span>
+        <input type="range" id="radius" min="0.05" max="0.9" step="0.01"></label>
+      <label class="row">Strength <span class="val" id="strengthVal"></span>
+        <input type="range" id="strength" min="0.05" max="1" step="0.01"></label>
+      <div class="btns">
+        <button id="undo" title="Undo (⌘Z)">Undo</button>
+        <button id="redo" title="Redo (⇧⌘Z)">Redo</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Decoration mesh</h2>
+      <label class="row">Grid resolution
+        <select id="res">
+          <option value="2">2 × 2 (polyhedron)</option><option value="3">3 × 3</option><option value="4">4 × 4</option>
+          <option value="6">6 × 6</option><option value="8">8 × 8</option><option value="12">12 × 12</option>
+          <option value="16">16 × 16</option><option value="24">24 × 24</option>
+          <option value="32">32 × 32</option><option value="48">48 × 48</option>
+        </select></label>
+      <label class="row">Start from
+        <select id="preset">
+          <option value="">choose…</option>
+          <option value="flat">Flat</option><option value="bumps">Bumps</option>
+          <option value="waves">Waves</option><option value="knob">Knob</option>
+        </select></label>
+      <div class="btns"><button id="regrid" title="Replace the mesh by a regular grid, keeping the shape (drops flips and refinement)">Regrid</button></div>
+      <p class="note">Flip quad, Subdivide and Refine change the mesh itself (c stays symmetric: its mirror edge follows). Square edges are never split.<br>Edits to <b class="ta">a</b> or <b class="tb">b</b> change both: b is a turned inside out by
+        S(x,y,z) = (y,x,−z). <b class="tc">c</b> stays S-invariant, so a bump on one side of its diagonal is a dent on the other.
+        Square edges stay pinned so neighbours always meet.</p>
+    </section>
+
+    <section>
+      <h2>Display</h2>
+      <label class="row">Colour by
+        <select id="colorBy">
+          <option value="auto">auto</option><option value="type">decoration (a/b/c)</option>
+          <option value="tile">tile</option><option value="both">tile + decoration</option>
+        </select></label>
+      <label class="check"><input type="checkbox" id="invertOrbit"> Invert orbit direction</label>
+      <label class="check"><input type="checkbox" id="flat"> Flat facets <kbd>H</kbd></label>
+      <label class="check"><input type="checkbox" id="wire"> Mesh wireframe <kbd>W</kbd></label>
+      <label class="check"><input type="checkbox" id="outlines"> Tile outlines <kbd>O</kbd></label>
+      <label class="check"><input type="checkbox" id="backfaces"> Mark inside-out surface (red)</label>
+      <div class="legend"><span class="sw ta"></span>a <span class="sw tb"></span>b <span class="sw tc"></span>c</div>
+    </section>
+
+    <section>
+      <h2>File</h2>
+      <div class="btns">
+        <button id="saveJson" title="Save decorations as JSON">Save</button>
+        <button id="loadJson" title="Load decorations from JSON">Load</button>
+        <button id="exportMma" title="Mathematica triangle lists for a, b, c and the whole tile">Mathematica</button>
+      </div>
+      <div class="btns">
+        <button id="stlTile" title="Binary STL of one decorated tile">STL tile</button>
+        <button id="stlView" title="Binary STL of what is shown">STL view</button>
+      </div>
+      <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    </section>
+
+    <footer>
+      <div id="stats"></div>
+    </footer>
+  </aside>
+
+  <main id="stage">
+    <canvas id="view"></canvas>
+    <button id="panelShow" class="icon" title="Show panel">⟩</button>
+    <div id="help">
+      <span><b>drag on surface</b> sculpt</span>
+      <span><b>drag background</b> or <b>space+drag</b> orbit</span>
+      <span><b>right-drag</b> pan</span>
+      <span><b>wheel</b> zoom</span>
+      <span><b>[ ]</b> radius</span>
+      <span><b>shift</b> invert pull/push</span>
+      <span><b>R</b> refine tool · <b>Home</b> reset view</span>
+    </div>
+    <div id="toast"></div>
+  </main>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
