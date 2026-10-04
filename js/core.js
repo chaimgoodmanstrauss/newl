@@ -595,6 +595,50 @@ export function refineTriangles(m, tris) {
   return refineEdges(m, edges);
 }
 
+// ---------------------------------------------------------------- coincident-face cancellation
+//
+// Where two placed decorations sit on the same unit square facing opposite ways and their surfaces
+// coincide (a|b pairs and c|c pairs always do, by construction: b = S(a) inside out, S(c) = c inside
+// out), the two faces glue together: that interior surface is removed for display and export. The
+// underlying meshes are untouched. Because both faces use the very same triangulation the removed
+// region is exactly the whole face, so nothing remains to remesh.
+//
+// recs: [{ type, M }]; matOf(rec) -> 4x4 placement actually shown (so exploding breaks the coincidence).
+// sigOf(rec): optional surface signature for pairs that are not a|b or c|c; those cancel only when
+// their signatures match. Returns the Set of recs to drop. tol is the coordinate tolerance.
+export function cancelCoincident(recs, matOf, sigOf = null, tol = 1e-4) {
+  const q = (v) => Math.round(v / tol);
+  const groups = new Map();
+  for (const r of recs) {
+    const M = matOf(r);
+    const corners = DECO_SQUARE[r.type].map((p) => applyPt(M, p).map(q).join(','));
+    const key = corners.sort().join('|');
+    const n = applyVec(M, [0, 0, 1]);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ r, n });
+  }
+  const gone = new Set();
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const used = new Set();
+    for (let i = 0; i < list.length; i++) {
+      if (used.has(i)) continue;
+      for (let j = i + 1; j < list.length; j++) {
+        if (used.has(j)) continue;
+        const [A, B] = [list[i], list[j]];
+        if (A.n[0] * B.n[0] + A.n[1] * B.n[1] + A.n[2] * B.n[2] >= 0) continue; // same side: not a glued pair
+        const ta = A.r.type, tb = B.r.type;
+        const designed = (ta === 'a' && tb === 'b') || (ta === 'b' && tb === 'a') || (ta === 'c' && tb === 'c');
+        if (!designed && !(sigOf && sigOf(A.r) === sigOf(B.r))) continue;
+        used.add(i); used.add(j);
+        gone.add(A.r); gone.add(B.r);
+        break;
+      }
+    }
+  }
+  return gone;
+}
+
 // ---------------------------------------------------------------- editable state
 
 export function makeState(n = 16) {
@@ -765,6 +809,31 @@ export function mirrorStamp(st) {
   const S3 = [[0, 1, 0], [1, 0, 0], [0, 0, -1]];
   const vec = S3.map((row) => [0, 1, 2].map((j) => row[0] * st.vec[0][j] + row[1] * st.vec[1][j] + row[2] * st.vec[2][j]));
   return { store: st.store, center: applyPt(S4, st.center), vec, nsign: -st.nsign };
+}
+
+// ---------------------------------------------------------------- grid snapping
+//
+// The lattice of multiples of `step` (1 = integers, 0.5 = integers and half-integers, ...) in a
+// decoration's own frame. All placements are integer affine maps, so this is the same lattice in the
+// tile / tiling frame. Boundary vertices stay pinned where they are.
+
+export const snapValue = (v, step) => Math.round(v / step) * step;
+
+// Snap every free vertex of both meshes. On c, each pair is snapped once and its partner set to the
+// S-image, so c stays symmetric.
+export function snapState(state, step) {
+  for (const t of ['a', 'c']) {
+    const m = state[t], P = m.pos;
+    for (let v = 0; v < m.pin.length; v++) {
+      if (m.pin[v]) continue;
+      const p = m.partner ? m.partner[v] : v;
+      if (p < v) continue; // handled with its partner
+      for (let d = 0; d < 3; d++) P[3 * v + d] = snapValue(P[3 * v + d], step);
+      if (m.partner && p !== v) { P[3 * p] = P[3 * v + 1]; P[3 * p + 1] = P[3 * v]; P[3 * p + 2] = -P[3 * v + 2]; }
+    }
+  }
+  symmetrizeC(state.c);
+  return state;
 }
 
 // ---------------------------------------------------------------- presets

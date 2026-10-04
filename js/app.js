@@ -7,7 +7,8 @@ const $ = (id) => document.getElementById(id);
 const STATE_KEY = 'newl.decorations.v1';
 const UI_KEY = 'newl.ui.v1';
 const TYPES = ['a', 'b', 'c'];
-const CLICK_TOOLS = ['flip', 'subdivide', 'refine', 'delvert']; // one click edits the mesh topology
+const CLICK_TOOLS = ['flip', 'subdivide', 'refine', 'delvert']
+const MESH_TOOLS = ['vertex', ...CLICK_TOOLS]; // tools that act on mesh elements: always show the mesh; // one click edits the mesh topology
 const TYPE_COLOR = { a: new THREE.Color(0xe07a5f), b: new THREE.Color(0x4aa3b8), c: new THREE.Color(0xe9c46a) };
 const TOOL_COLOR = { grab: 0xffffff, pull: 0x8be08b, push: 0xffa25c, smooth: 0x7fb2ff, flatten: 0xbbbbbb, vertex: 0xff6bd6, flip: 0xffe066, refine: 0x9b8cff, subdivide: 0x9b8cff, delvert: 0xff7a7a };
 const S3 = [[0, 1, 0], [1, 0, 0], [0, 0, -1]];
@@ -19,7 +20,7 @@ const store = {
 
 const ui = Object.assign({
   view: 'tile', level: 1, explode: 0, peel: 0, tool: 'grab', radius: 0.3, strength: 0.5,
-  colorBy: 'auto', invertOrbit: false, flat: false, wire: false, outlines: true, backfaces: true,
+  colorBy: 'auto', snapStep: 0.5, cancel: true, invertOrbit: false, flat: false, wire: false, outlines: true, backfaces: true,
 }, store.get(UI_KEY) || {});
 
 // ------------------------------------------------------------------ state
@@ -134,7 +135,7 @@ const brushR = () => Math.max(ui.radius, C.meanEdge(state.a), C.meanEdge(state.c
 
 const backTint = { value: ui.backfaces ? 0.75 : 0 };
 const solidMat = new THREE.MeshStandardMaterial({
-  color: 0xffffff, roughness: 0.5, metalness: 0, flatShading: ui.flat, side: THREE.DoubleSide,
+  color: 0xffffff, roughness: 0.5, metalness: 0, flatShading: ui.flat, side: THREE.DoubleSide, transparent: true,
   polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
 });
 solidMat.onBeforeCompile = (sh) => {
@@ -142,7 +143,7 @@ solidMat.onBeforeCompile = (sh) => {
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', '#include <common>\nuniform float uBackTint;')
     .replace('#include <color_fragment>',
-      '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85, 0.06, 0.3), uBackTint);');
+      '#include <color_fragment>\nif (!gl_FrontFacing) { diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85, 0.06, 0.3), uBackTint); diffuseColor.a *= mix(1.0, 0.25, step(0.001, uBackTint)); }');
 };
 const wireMat = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true, opacity: 0.25, depthWrite: false });
 const lineMat = new THREE.LineBasicMaterial({ color: 0x10131a, transparent: true, opacity: 0.55 });
@@ -202,7 +203,9 @@ function syncGeometry(touched) {
 
 let layout = null;
 let meshes = []; // { type, sign, solid, wire, recs }
-let visibleRecs = [];
+let visibleRecs = []; // every placed decoration of the visible tiles (what brushes act on)
+let shownRecs = []; // those actually drawn / exported: visibleRecs minus cancelled coincident faces
+let cancelledCount = 0;
 const extras = new THREE.Group(); // outlines, labels
 world.add(extras);
 
@@ -285,15 +288,29 @@ function rebuildMeshes() {
   refreshInstances();
 }
 
+// signature of a decoration's placed surface, for the rare coincident pair that isn't a|b or c|c
+function surfaceSig(r) {
+  const M = displayMatrix(r), pos = r.type === 'c' ? state.c.pos : r.type === 'a' ? state.a.pos : C.applyS(state.a.pos);
+  const out = [];
+  for (let k = 0; k < pos.length; k += 3) out.push(C.applyPt(M, [pos[k], pos[k + 1], pos[k + 2]]).map((v) => Math.round(v * 1e4)).join(','));
+  return out.sort().join(';');
+}
+
+const wireOn = () => ui.wire || MESH_TOOLS.includes(ui.tool);
+function updateWire() { for (const m of meshes) m.wire.visible = wireOn(); }
+
 function refreshInstances() {
   const hidden = hiddenTiles();
-  visibleRecs = [];
+  visibleRecs = layout.recs.filter((r) => !hidden.has(r.tile));
+  for (const r of visibleRecs) r.W = toThree(displayMatrix(r));
+  const gone = ui.cancel && ui.view !== 'deco' ? C.cancelCoincident(visibleRecs, displayMatrix, surfaceSig) : new Set();
+  cancelledCount = gone.size;
+  shownRecs = [];
   for (const m of meshes) {
     let k = 0;
     m.recs = [];
-    for (const r of layout.recs) {
-      if (r.type !== m.type || r.det !== m.sign || hidden.has(r.tile)) continue;
-      r.W = toThree(displayMatrix(r));
+    for (const r of visibleRecs) {
+      if (r.type !== m.type || r.det !== m.sign || gone.has(r)) continue;
       m.solid.setMatrixAt(k, r.W);
       m.solid.setColorAt(k, colorFor(r));
       m.recs.push(r);
@@ -304,8 +321,8 @@ function refreshInstances() {
     m.solid.instanceColor.needsUpdate = true;
     m.solid.boundingSphere = null;
     m.solid.userData.recs = m.recs;
-    m.wire.visible = ui.wire;
-    visibleRecs.push(...m.recs);
+    m.wire.visible = wireOn();
+    shownRecs.push(...m.recs);
   }
   rebuildExtras(hidden);
   updateStats();
@@ -471,8 +488,11 @@ function topologyEdit(hit) {
     next = C.refineTriangles(mesh, C.trianglesNear(mesh, st.center, brushR() * 0.5, hit.face));
     if (!next) { toast('Nothing to refine here'); return false; }
   }
+  const before = state[st.store].tri.length / 3;
   pushUndo();
   setState({ ...state, [st.store]: next });
+  const after = next.tri.length / 3;
+  toast(after === before ? `${st.store}: edge flipped (${after} triangles)` : `${st.store}: ${before} → ${after} triangles`);
   return true;
 }
 
@@ -561,6 +581,25 @@ function setPointer(e) {
   pointer.moved = true;
 }
 
+// ---- grid snapping (Vertex tool): the dragged vertex lands on the lattice of multiples of ui.snapStep
+// in its own (store) frame. Works through the stamp's world->store map, then maps the snapped
+// displacement back, so grabMove (and c's mirror partner) stay unchanged.
+function inv3(M) {
+  const [[a, b, c], [d, e, f], [g, h, i]] = M;
+  const A = e * i - f * h, B = -(d * i - f * g), Cc = d * h - e * g, det = a * A + b * B + c * Cc;
+  return [[A / det, -(b * i - c * h) / det, (b * f - c * e) / det],
+    [B / det, (a * i - c * g) / det, -(a * f - c * d) / det],
+    [Cc / det, -(a * h - b * g) / det, (a * e - b * d) / det]];
+}
+const mulV3 = (M, v) => M.map((r) => r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
+
+function snappedDelta(grab, d) {
+  const { st, ws } = grab.terms[0], k = ws[0], start = grab.start[st.store].pos;
+  const sd = mulV3(st.vec, d), p0 = [start[k], start[k + 1], start[k + 2]];
+  const snapped = p0.map((v, i) => C.snapValue(v + sd[i], ui.snapStep));
+  return mulV3(inv3(st.vec), snapped.map((v, i) => v - p0[i]));
+}
+
 function onPointerDown(e) {
   if (e.button !== 0 || orbitOverride || e.altKey || e.metaKey || e.ctrlKey) return;
   setPointer(e);
@@ -604,9 +643,13 @@ canvas.addEventListener('pointermove', (e) => {
     const p = new THREE.Vector3();
     if (raycaster.ray.intersectPlane(stroke.plane, p)) {
       const d = p.clone().sub(stroke.start);
-      syncGeometry(C.grabMove(state, stroke.grab, [d.x, d.y, d.z]));
+      const snap = stroke.tool === 'vertex';
+      syncGeometry(C.grabMove(state, stroke.grab, snap ? snappedDelta(stroke.grab, [d.x, d.y, d.z]) : [d.x, d.y, d.z]));
       stroke.changed = true;
-      placeCursor(p, stroke.normal);
+      if (snap) {
+        const { st, ws } = stroke.grab.terms[0], P = state[st.store].pos;
+        placeCursor(storeToScene(stroke.rec, [P[ws[0]], P[ws[0] + 1], P[ws[0] + 2]]), stroke.normal);
+      } else placeCursor(p, stroke.normal);
     }
   }
 });
@@ -774,7 +817,7 @@ function stl(tris) {
 }
 
 function exportStl(which) {
-  const recs = which === 'tile' ? C.CHAIR.map(([type, M]) => ({ type, M })) : visibleRecs;
+  const recs = which === 'tile' ? C.CHAIR.map(([type, M]) => ({ type, M })) : shownRecs;
   const matOf = which === 'tile' ? (r) => r.M : (r) => displayMatrix(r);
   const count = triCount(recs);
   if (count > 2e6 && !confirm(`That is ${(count / 1e6).toFixed(1)} million triangles (${Math.round(count * 50 / 1e6)} MB). Continue?`)) return;
@@ -796,10 +839,10 @@ const triCount = (recs) => recs.reduce((n, r) => n + (r.type === 'c' ? state.c.t
 function updateStats() {
   if (!layout) return;
   const tiles = new Set(visibleRecs.map((r) => r.tile)).size;
-  const tris = triCount(visibleRecs);
+  const tris = triCount(shownRecs);
   $('stats').textContent = ui.view === 'deco'
     ? `a, b: ${state.a.tri.length / 3} triangles · c: ${state.c.tri.length / 3} triangles`
-    : `${tiles} tile${tiles === 1 ? '' : 's'} · ${visibleRecs.length} decorations · ${(tris / 1e6).toFixed(tris > 1e6 ? 1 : 2)}M triangles`;
+    : `${tiles} tile${tiles === 1 ? '' : 's'} · ${shownRecs.length} decorations${cancelledCount ? ` (${cancelledCount} glued faces removed)` : ''} · ${(tris / 1e6).toFixed(tris > 1e6 ? 1 : 2)}M triangles`;
 }
 
 function syncControls() {
@@ -816,6 +859,8 @@ function syncControls() {
   $('strengthVal').textContent = ui.strength.toFixed(2);
   $('colorBy').value = ui.colorBy;
   $('invertOrbit').checked = ui.invertOrbit;
+  $('snapStep').value = String(ui.snapStep);
+  $('cancel').checked = ui.cancel;
   $('flat').checked = ui.flat;
   $('wire').checked = ui.wire;
   $('outlines').checked = ui.outlines;
@@ -833,7 +878,7 @@ function setView(v) {
 }
 function setTool(t) {
   ui.tool = t;
-  if (CLICK_TOOLS.includes(t) && !ui.wire) { ui.wire = true; refreshInstances(); }
+  updateWire();
   pointer.moved = true; syncControls(); saveUI(); }
 
 $('viewSeg').addEventListener('click', (e) => { const v = e.target.dataset?.view; if (v) setView(v); });
@@ -845,6 +890,15 @@ $('radius').addEventListener('input', (e) => { ui.radius = +e.target.value; sync
 $('strength').addEventListener('input', (e) => { ui.strength = +e.target.value; syncControls(); saveUI(); });
 $('colorBy').addEventListener('change', (e) => { ui.colorBy = e.target.value; refreshInstances(); saveUI(); });
 $('invertOrbit').addEventListener('change', (e) => { ui.invertOrbit = e.target.checked; saveUI(); });
+$('snapStep').addEventListener('change', (e) => { ui.snapStep = +e.target.value; saveUI(); });
+$('snapAll').addEventListener('click', () => {
+  pushUndo();
+  const s = C.cloneState(state);
+  C.snapState(s, ui.snapStep);
+  setState(s);
+  toast(`Snapped every free vertex to multiples of ${ui.snapStep}`);
+});
+$('cancel').addEventListener('change', (e) => { ui.cancel = e.target.checked; refreshInstances(); saveUI(); });
 $('flat').addEventListener('change', (e) => { ui.flat = e.target.checked; solidMat.flatShading = ui.flat; solidMat.needsUpdate = true; saveUI(); });
 $('wire').addEventListener('change', (e) => { ui.wire = e.target.checked; refreshInstances(); saveUI(); });
 $('outlines').addEventListener('change', (e) => { ui.outlines = e.target.checked; extras.visible = ui.outlines; saveUI(); });
@@ -904,7 +958,8 @@ window.addEventListener('keydown', (e) => {
   else if (k === '[' || k === ']') {
     ui.radius = Math.min(0.9, Math.max(0.05, ui.radius * (k === ']' ? 1.15 : 1 / 1.15)));
     syncControls(); saveUI(); pointer.moved = true;
-  } else if (k === 'h') { ui.flat = !ui.flat; solidMat.flatShading = ui.flat; solidMat.needsUpdate = true; syncControls(); saveUI(); }
+  }
+  else if (k === 'h') { ui.flat = !ui.flat; solidMat.flatShading = ui.flat; solidMat.needsUpdate = true; syncControls(); saveUI(); }
   else if (k === 'w') { ui.wire = !ui.wire; refreshInstances(); syncControls(); saveUI(); }
   else if (k === 'o') { ui.outlines = !ui.outlines; extras.visible = ui.outlines; syncControls(); saveUI(); }
   else if (k === 'home') resetCamera();

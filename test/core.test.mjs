@@ -194,5 +194,42 @@ console.log('delete vertex');
   check(C.cIsSymmetric(c) && manifold(c), `c: 30 mixed refine/delete/flip steps stay symmetric and manifold (${c.tri.length / 3} tris)`);
 }
 
+console.log('glued-face cancellation');
+for (const level of [0, 1, 2]) {
+  const P = C.placements(level);
+  const recs = [];
+  P.forEach((T, ti) => C.CHAIR.forEach(([type, M]) => recs.push({ type, tile: ti, M: C.mul(T, M) })));
+  const gone = C.cancelCoincident(recs, (r) => r.M);
+  // interior faces = pairs of squares shared by two tiles; each removes 2 decorations
+  const n = P.length;
+  const outer = recs.length - gone.size;
+  // closed surface check: the surviving decorations still tile a surface (every surviving unit square is unique)
+  const keys = new Map();
+  for (const r of recs) if (!gone.has(r)) { const k = C.DECO_SQUARE[r.type].map((p) => C.applyPt(r.M, p).map((v) => Math.round(v * 1e4)).join(',')).sort().join('|'); keys.set(k, (keys.get(k) || 0) + 1); }
+  check([...keys.values()].every((v) => v === 1) && gone.size % 2 === 0 && (level === 0 ? gone.size === 0 : gone.size > 0),
+    `level ${level}: ${n} tiles, ${recs.length} decorations, ${gone.size} glued away, ${outer} on the outer surface`);
+}
+{
+  // exploding the tiles apart separates the faces, so nothing cancels
+  const P = C.placements(1);
+  const recs = [];
+  P.forEach((T, ti) => C.CHAIR.forEach(([type, M]) => recs.push({ type, tile: ti, M: C.mul(T, M), ti })));
+  const gone = C.cancelCoincident(recs, (r) => C.mul(C.translateMat([r.ti * 0.01, 0, 0]), r.M));
+  check(gone.size === 0, 'shifted tiles: nothing cancels');
+}
+
+console.log('grid snapping');
+{
+  const s = C.presetState('bumps', 8);
+  for (const step of [1, 0.5, 0.25]) {
+    const t = C.snapState(C.cloneState(s), step);
+    const onLattice = (m) => { for (let v = 0; v < m.pin.length; v++) if (!m.pin[v]) for (let d = 0; d < 3; d++) { const x = m.pos[3 * v + d] / step; if (Math.abs(x - Math.round(x)) > 1e-5) return false; } return true; };
+    const sym = C.symmetrizeC(C.cloneMesh(t.c));
+    check(onLattice(t.a) && sym.pos.every((v, i) => near(v, t.c.pos[i], 1e-6)) && C.snapValue(0.26, 0.5) === 0.5 && C.snapValue(-0.74, 0.5) === -0.5, `step ${step}: free vertices on the lattice (a), c still S-symmetric`);
+  }
+  const t = C.snapState(C.cloneState(s), 0.5);
+  check(t.a.pos.slice(0, 3).every((v, i) => near(v, s.a.pos[i], 1e-9)), 'pinned boundary vertices untouched');
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
