@@ -21,7 +21,7 @@ const store = {
 const ui = Object.assign({
   view: 'tile', level: 1, explode: 0, peel: 0, tool: 'grab', radius: 0.3, strength: 0.5,
   colorBy: 'auto', snapStep: 0.5, cancel: true, invertOrbit: false, flat: false, wire: false, outlines: true, backfaces: true,
-}, store.get(UI_KEY) || {}, { colorBy: 'auto', snapStep: 0.5, cancel: true, invertOrbit: false, outlines: true, backfaces: true });
+}, store.get(UI_KEY) || {}, { radius: 0.3, strength: 0.5, colorBy: 'auto', snapStep: 0.5, cancel: true, invertOrbit: false, outlines: true, backfaces: true });
 if (ui.view !== 'tiling') ui.explode = 0;
 
 // ------------------------------------------------------------------ state
@@ -277,6 +277,7 @@ function rebuildMeshes() {
       const wire = new THREE.InstancedMesh(g, wireMat, cap);
       wire.instanceMatrix = solid.instanceMatrix;
       wire.frustumCulled = false;
+      wire.renderOrder = 1; // draw after every solid; both are transparent, so otherwise camera-dependent depth sorting hides the mesh
       wire.raycast = () => {};
       meshes.push({ type, sign, solid, wire, recs: [] });
       world.add(solid, wire);
@@ -369,8 +370,6 @@ function rebuildExtras(hidden) {
     const dl = new THREE.Line(diag, dashMat);
     dl.computeLineDistances();
     extras.add(dl);
-    const lab = { a: [-0.62, 1.22, 0], b: [0.5, -1.34, 0], c: [0.5, 1.22, 0] };
-    for (const t of TYPES) { const sp = labelSprite(t, TYPE_COLOR[t]); sp.position.set(...lab[t]); extras.add(sp); }
   } else {
     layout.tiles.forEach((tile, ti) => {
       if (hidden.has(ti)) return;
@@ -840,11 +839,9 @@ function syncControls() {
   for (const b of $('toolSeg').children) b.classList.toggle('on', b.dataset.tool === ui.tool);
   $('levelRow').style.display = ui.view === 'tiling' ? '' : 'none';
   $('peelRow').style.display = ui.view === 'tiling' ? '' : 'none';
-  for (const k of ['level', 'peel', 'radius', 'strength']) $(k).value = ui[k];
+  for (const k of ['level', 'peel']) $(k).value = ui[k];
   $('levelVal').textContent = `${ui.level} (${8 ** ui.level} tiles)`;
   $('peelVal').textContent = Math.round(ui.peel * 100) + '%';
-  $('radiusVal').textContent = ui.radius.toFixed(2);
-  $('strengthVal').textContent = ui.strength.toFixed(2);
   $('flat').checked = ui.flat;
   $('wire').checked = ui.wire;
   $('res').value = String(state.n);
@@ -867,8 +864,6 @@ $('viewSeg').addEventListener('click', (e) => { const v = e.target.dataset?.view
 $('toolSeg').addEventListener('click', (e) => { const t = e.target.dataset?.tool; if (t) setTool(t); });
 $('level').addEventListener('input', (e) => { ui.level = +e.target.value; rebuildMeshes(); syncControls(); saveUI(); });
 $('peel').addEventListener('input', (e) => { ui.peel = +e.target.value; refreshInstances(); syncControls(); saveUI(); });
-$('radius').addEventListener('input', (e) => { ui.radius = +e.target.value; syncControls(); saveUI(); });
-$('strength').addEventListener('input', (e) => { ui.strength = +e.target.value; syncControls(); saveUI(); });
 $('flat').addEventListener('change', (e) => { ui.flat = e.target.checked; solidMat.flatShading = ui.flat; solidMat.needsUpdate = true; saveUI(); });
 $('wire').addEventListener('change', (e) => { ui.wire = e.target.checked; refreshInstances(); saveUI(); });
 $('undo').addEventListener('click', undo);
@@ -927,10 +922,6 @@ window.addEventListener('keydown', (e) => {
   else if (k === '1') setView('deco');
   else if (k === '2') setView('tile');
   else if (k === '3') setView('tiling');
-  else if (k === '[' || k === ']') {
-    ui.radius = Math.min(0.9, Math.max(0.05, ui.radius * (k === ']' ? 1.15 : 1 / 1.15)));
-    syncControls(); saveUI(); pointer.moved = true;
-  }
   else if (k === 'h') { ui.flat = !ui.flat; solidMat.flatShading = ui.flat; solidMat.needsUpdate = true; syncControls(); saveUI(); }
   else if (k === 'w') { ui.wire = !ui.wire; refreshInstances(); syncControls(); saveUI(); }
   else if (k === 'o') { ui.outlines = !ui.outlines; extras.visible = ui.outlines; syncControls(); saveUI(); }

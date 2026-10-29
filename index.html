@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chair44</title>
-<link rel="stylesheet" href="css/style.css?v=202610292032">
+<link rel="stylesheet" href="css/style.css?v=202610292041">
 <script type="importmap">
 { "imports": {
   "three": "./vendor/three/three.module.js",
@@ -42,8 +42,6 @@
         <button data-tool="delvert" title="Delete vertex: remove an interior vertex and re-triangulate the hole left by its triangles (X)">Delete vertex</button>
         <button data-tool="flatten" title="Flatten: return toward the flat square (F)">Flatten</button>
       </div>
-      <label class="row inline">Radius <input type="range" id="radius" min="0.05" max="0.9" step="0.01"><span class="val" id="radiusVal"></span></label>
-      <label class="row inline">Strength <input type="range" id="strength" min="0.05" max="1" step="0.01"><span class="val" id="strengthVal"></span></label>
       <div class="btns">
         <button id="undo" title="Undo (⌘Z)">Undo</button>
         <button id="redo" title="Redo (⇧⌘Z)">Redo</button>
@@ -51,7 +49,7 @@
     </details>
 
     <details class="sec">
-      <summary>Mesh</summary>
+      <summary>Reset Mesh</summary>
       <label class="row">Grid resolution
         <select id="res">
           <option value="2">2 × 2 (polyhedron)</option><option value="3">3 × 3</option><option value="4">4 × 4</option>
@@ -93,6 +91,6 @@
     <div id="toast"></div>
   </main>
 </div>
-<script type="module" src="js/app.js?v=202610292032"></script>
+<script type="module" src="js/app.js?v=202610292041"></script>
 </body>
 </html>

@@ -50,3 +50,5 @@ Test: `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --p
 ## Deployment note
 
 Renamed (2026-10-29): the app is now served at `https://chaimgoodmanstrauss.com/chair44-drawer/` (deployed to `public_html/apps/chair44-drawer/` by `./deploy.sh`). It was previously `/newl/` and `/ltile/`; both old URLs 301-redirect to the new one via the redirect lines in `../update-htaccess.sh`. Local folder name stays `newl`.
+
+**Cache-busting:** `index.html` loads `js/app.js` and `css/style.css` with a `?v=` tag. Change the tag only when a deploy leaves browsers or Cloudflare serving a stale script or stylesheet (symptom: errors from the old code after a deploy); otherwise leave it.
