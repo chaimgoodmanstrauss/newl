@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
 const STATE_KEY = 'newl.decorations.v1';
 const UI_KEY = 'newl.ui.v1';
 const TYPES = ['a', 'b', 'c'];
-const CLICK_TOOLS = ['flip', 'subdivide', 'refine', 'delvert']
+const CLICK_TOOLS = ['flip', 'subdivide', 'delvert']
 const MESH_TOOLS = ['vertex', ...CLICK_TOOLS]; // tools that act on mesh elements: always show the mesh; // one click edits the mesh topology
 const TYPE_COLOR = { a: new THREE.Color(0xe07a5f), b: new THREE.Color(0x4aa3b8), c: new THREE.Color(0xe9c46a) };
 const TOOL_COLOR = { grab: 0xffffff, pull: 0x8be08b, push: 0xffa25c, smooth: 0x7fb2ff, flatten: 0xbbbbbb, vertex: 0xff6bd6, flip: 0xffe066, refine: 0x9b8cff, subdivide: 0x9b8cff, delvert: 0xff7a7a };
@@ -21,7 +21,8 @@ const store = {
 const ui = Object.assign({
   view: 'tile', level: 1, explode: 0, peel: 0, tool: 'grab', radius: 0.3, strength: 0.5,
   colorBy: 'auto', snapStep: 0.5, cancel: true, invertOrbit: false, flat: false, wire: false, outlines: true, backfaces: true,
-}, store.get(UI_KEY) || {});
+}, store.get(UI_KEY) || {}, { colorBy: 'auto', snapStep: 0.5, cancel: true, invertOrbit: false, outlines: true, backfaces: true });
+if (ui.view !== 'tiling') ui.explode = 0;
 
 // ------------------------------------------------------------------ state
 
@@ -102,7 +103,7 @@ const controls = (() => {
     drag.x = e.clientX; drag.y = e.clientY;
     off.copy(camera.position).sub(c.target);
     if (drag.mode === 'rotate') {
-      const k = 0.005 * (ui.invertOrbit ? -1 : 1);
+      const k = 0.005;
       const up = ax.set(0, 1, 0).applyQuaternion(camera.quaternion).clone();
       const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
       // object rotation Ro = R(up, dx) * R(right, dy); the camera takes its inverse
@@ -245,18 +246,13 @@ function displayMatrix(r) {
     const off = layout.tiles[r.tile].off.map((v) => v * ui.explode);
     return C.mul(C.translateMat(off), r.M);
   }
-  if (ui.view === 'tile' && ui.explode > 0) {
-    const n = C.applyVec(r.M, [0, 0, 1]).map((v) => v * ui.explode * 0.6);
-    return C.mul(C.translateMat(n), r.M);
-  }
   return r.M;
 }
 
 const toThree = (M) => new THREE.Matrix4().set(...M[0], ...M[1], ...M[2], ...M[3]);
 
 function colorFor(r) {
-  let mode = ui.colorBy;
-  if (mode === 'auto') mode = ui.view === 'tiling' ? 'tile' : 'type';
+  const mode = ui.view === 'tiling' ? 'tile' : 'type';
   if (mode === 'type') return TYPE_COLOR[r.type];
   const hue = (r.tile * 0.618034) % 1;
   const col = new THREE.Color().setHSL(hue, 0.42, 0.6);
@@ -488,11 +484,8 @@ function topologyEdit(hit) {
     next = C.refineTriangles(mesh, C.trianglesNear(mesh, st.center, brushR() * 0.5, hit.face));
     if (!next) { toast('Nothing to refine here'); return false; }
   }
-  const before = state[st.store].tri.length / 3;
   pushUndo();
   setState({ ...state, [st.store]: next });
-  const after = next.tri.length / 3;
-  toast(after === before ? `${st.store}: edge flipped (${after} triangles)` : `${st.store}: ${before} → ${after} triangles`);
   return true;
 }
 
@@ -840,9 +833,6 @@ function updateStats() {
   if (!layout) return;
   const tiles = new Set(visibleRecs.map((r) => r.tile)).size;
   const tris = triCount(shownRecs);
-  $('stats').textContent = ui.view === 'deco'
-    ? `a, b: ${state.a.tri.length / 3} triangles · c: ${state.c.tri.length / 3} triangles`
-    : `${tiles} tile${tiles === 1 ? '' : 's'} · ${shownRecs.length} decorations${cancelledCount ? ` (${cancelledCount} glued faces removed)` : ''} · ${(tris / 1e6).toFixed(tris > 1e6 ? 1 : 2)}M triangles`;
 }
 
 function syncControls() {
@@ -850,21 +840,13 @@ function syncControls() {
   for (const b of $('toolSeg').children) b.classList.toggle('on', b.dataset.tool === ui.tool);
   $('levelRow').style.display = ui.view === 'tiling' ? '' : 'none';
   $('peelRow').style.display = ui.view === 'tiling' ? '' : 'none';
-  $('explodeRow').style.display = ui.view === 'deco' ? 'none' : '';
-  for (const k of ['level', 'explode', 'peel', 'radius', 'strength']) $(k).value = ui[k];
+  for (const k of ['level', 'peel', 'radius', 'strength']) $(k).value = ui[k];
   $('levelVal').textContent = `${ui.level} (${8 ** ui.level} tiles)`;
-  $('explodeVal').textContent = ui.explode.toFixed(2);
   $('peelVal').textContent = Math.round(ui.peel * 100) + '%';
   $('radiusVal').textContent = ui.radius.toFixed(2);
   $('strengthVal').textContent = ui.strength.toFixed(2);
-  $('colorBy').value = ui.colorBy;
-  $('invertOrbit').checked = ui.invertOrbit;
-  $('snapStep').value = String(ui.snapStep);
-  $('cancel').checked = ui.cancel;
   $('flat').checked = ui.flat;
   $('wire').checked = ui.wire;
-  $('outlines').checked = ui.outlines;
-  $('backfaces').checked = ui.backfaces;
   $('res').value = String(state.n);
 }
 
@@ -884,25 +866,11 @@ function setTool(t) {
 $('viewSeg').addEventListener('click', (e) => { const v = e.target.dataset?.view; if (v) setView(v); });
 $('toolSeg').addEventListener('click', (e) => { const t = e.target.dataset?.tool; if (t) setTool(t); });
 $('level').addEventListener('input', (e) => { ui.level = +e.target.value; rebuildMeshes(); syncControls(); saveUI(); });
-$('explode').addEventListener('input', (e) => { ui.explode = +e.target.value; refreshInstances(); syncControls(); saveUI(); });
 $('peel').addEventListener('input', (e) => { ui.peel = +e.target.value; refreshInstances(); syncControls(); saveUI(); });
 $('radius').addEventListener('input', (e) => { ui.radius = +e.target.value; syncControls(); saveUI(); });
 $('strength').addEventListener('input', (e) => { ui.strength = +e.target.value; syncControls(); saveUI(); });
-$('colorBy').addEventListener('change', (e) => { ui.colorBy = e.target.value; refreshInstances(); saveUI(); });
-$('invertOrbit').addEventListener('change', (e) => { ui.invertOrbit = e.target.checked; saveUI(); });
-$('snapStep').addEventListener('change', (e) => { ui.snapStep = +e.target.value; saveUI(); });
-$('snapAll').addEventListener('click', () => {
-  pushUndo();
-  const s = C.cloneState(state);
-  C.snapState(s, ui.snapStep);
-  setState(s);
-  toast(`Snapped every free vertex to multiples of ${ui.snapStep}`);
-});
-$('cancel').addEventListener('change', (e) => { ui.cancel = e.target.checked; refreshInstances(); saveUI(); });
 $('flat').addEventListener('change', (e) => { ui.flat = e.target.checked; solidMat.flatShading = ui.flat; solidMat.needsUpdate = true; saveUI(); });
 $('wire').addEventListener('change', (e) => { ui.wire = e.target.checked; refreshInstances(); saveUI(); });
-$('outlines').addEventListener('change', (e) => { ui.outlines = e.target.checked; extras.visible = ui.outlines; saveUI(); });
-$('backfaces').addEventListener('change', (e) => { ui.backfaces = e.target.checked; backTint.value = ui.backfaces ? 0.75 : 0; saveUI(); });
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('res').addEventListener('change', (e) => {
@@ -936,11 +904,15 @@ $('fileIn').addEventListener('change', async (e) => {
   setState(s);
   toast(`Loaded ${f.name}`);
 });
-$('exportMma').addEventListener('click', exportMathematica);
-$('stlTile').addEventListener('click', () => exportStl('tile'));
-$('stlView').addEventListener('click', () => exportStl('view'));
-$('panelToggle').addEventListener('click', () => { $('app').classList.add('collapsed'); });
-$('panelShow').addEventListener('click', () => { $('app').classList.remove('collapsed'); });
+$('saveStl').addEventListener('click', () => exportStl('view'));
+// menu open/closed state persists across sessions; first visit: only the first menu (Show) is open
+const SECTIONS_KEY = 'newl.sections.v1';
+const sectionState = store.get(SECTIONS_KEY) || {};
+document.querySelectorAll('details.sec').forEach((d, i) => {
+  const name = d.querySelector('summary').textContent;
+  d.open = name in sectionState ? !!sectionState[name] : i === 0;
+  d.addEventListener('toggle', () => { sectionState[name] = d.open; store.set(SECTIONS_KEY, sectionState); });
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea') && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
@@ -950,7 +922,7 @@ window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === 'Alt') orbitOverride = true; return; }
   pointer.shift = e.shiftKey;
   if (e.key === ' ') { orbitOverride = true; cursor.visible = false; e.preventDefault(); return; }
-  const tools = { g: 'grab', p: 'pull', i: 'push', s: 'smooth', f: 'flatten', v: 'vertex', e: 'flip', d: 'subdivide', x: 'delvert', r: 'refine' };
+  const tools = { g: 'grab', f: 'flatten', v: 'vertex', e: 'flip', d: 'subdivide', x: 'delvert' };
   if (tools[k]) setTool(tools[k]);
   else if (k === '1') setView('deco');
   else if (k === '2') setView('tile');

@@ -1,0 +1,9 @@
+{
+  "name": "Newl (L-tile Decorator)",
+  "cat": "Geometry",
+  "icon": "ltile",
+  "desc": "3D editor for chair-tile decorations and substitution tilings.",
+  "path": "chair44-drawer/",
+  "live": true,
+  "img": "icons/ltile.jpg"
+}

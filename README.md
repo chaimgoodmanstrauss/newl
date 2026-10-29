@@ -46,3 +46,7 @@ Where two decorations sit face to face on the same unit square (every interior f
 - Per-element bookkeeping lives in three mesh attributes: `newl_piece` (face → piece), `newl_vert` (vertex → motif vertex, negative = outline), `newl_rest` (where an outline vertex sits on the outline, in the motif frame).
 
 Test: `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python blender/test_newl_tile.py`.
+
+## Deployment note
+
+Renamed (2026-10-29): the app is now served at `https://chaimgoodmanstrauss.com/chair44-drawer/` (deployed to `public_html/apps/chair44-drawer/` by `./deploy.sh`). It was previously `/newl/` and `/ltile/`; both old URLs 301-redirect to the new one via the redirect lines in `../update-htaccess.sh`. Local folder name stays `newl`.

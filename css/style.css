@@ -71,3 +71,13 @@ kbd { font: 10px ui-monospace, monospace; color: var(--muted); border: 1px solid
 }
 .seg.tools { flex-wrap: wrap; }
 .seg.tools button { flex: 1 0 22%; white-space: nowrap; }
+
+h1 a { color: #c9d6ec; text-decoration: none; }
+details.sec { padding: 8px 16px; border-bottom: 1px solid var(--line); }
+details.sec > summary { cursor: pointer; list-style: none; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); font-weight: 600; padding: 4px 0; user-select: none; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::before { content: "▾"; display: inline-block; width: 14px; }
+details.sec:not([open]) > summary::before { content: "▸"; }
+.row.inline { grid-template-columns: 58px 1fr 34px; }
+.row.inline input[type=range] { grid-column: auto; }
