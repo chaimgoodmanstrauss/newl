@@ -2,7 +2,7 @@
   "name": "Chair44",
   "cat": "Geometry",
   "icon": "ltile",
-  "desc": "3D editor for chair-tile decorations and substitution tilings.",
+  "desc": "Explore possible shapes for the Chair44 aperiodic monotile.",
   "path": "chair44-drawer/",
   "live": true,
   "img": "icons/ltile.jpg"
